@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
   View, 
   Text, 
@@ -10,102 +10,54 @@ import {
   StatusBar,
   SafeAreaView
 } from 'react-native';
-import { useFonts } from 'expo-font';
-import { 
-  Rajdhani_400Regular, 
-  Rajdhani_600SemiBold, 
-  Rajdhani_700Bold 
-} from '@expo-google-fonts/rajdhani';
-import { getSettings, saveSettings } from '../utils/storage';
 import * as Haptics from 'expo-haptics';
 
 const SettingsScreen = ({ navigation }) => {
-  const [sosMessage, setSosMessage] = useState("I need help! This is an emergency. Please contact me immediately.");
-  const [fakeCallName, setFakeCallName] = useState("Mom");
-  const [shakeSensitivity, setShakeSensitivity] = useState(2.0); // Default Medium
-  const [safetyTimerReminder, setSafetyTimerReminder] = useState(true);
+  const [sosMessage, setSosMessage] = React.useState("I need help! This is an emergency. Please contact me immediately.");
+  const [fakeCallName, setFakeCallName] = React.useState("Mom");
+  const [shakeSensitivity, setShakeSensitivity] = React.useState(2.0); // Default Medium
+  const [safetyTimerReminder, setSafetyTimerReminder] = React.useState(true);
 
-  // Fonts loading
-  const [fontsLoaded] = useFonts({
-    Rajdhani_400Regular,
-    Rajdhani_600SemiBold,
-    Rajdhani_700Bold,
-  });
-
-  // Load saved settings on mount
-  useEffect(() => {
-    const loadSettings = async () => {
-      try {
-        const saved = await getSettings();
-        if (saved) {
-          if (saved.sosMessage !== undefined) setSosMessage(saved.sosMessage);
-          if (saved.fakeCallName !== undefined) setFakeCallName(saved.fakeCallName);
-          if (saved.shakeSensitivity !== undefined) setShakeSensitivity(saved.shakeSensitivity);
-          if (saved.safetyTimerReminder !== undefined) setSafetyTimerReminder(saved.safetyTimerReminder);
-        }
-      } catch (e) {
-        console.error("Failed to load settings:", e);
-      }
-    };
-    loadSettings();
-  }, []);
-
-  // Save settings on changes
-  const updateSetting = async (key, value) => {
-    // Vibrate briefly on change
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    let nextSosMessage = sosMessage;
-    let nextFakeCallName = fakeCallName;
-    let nextShakeSensitivity = shakeSensitivity;
-    let nextSafetyTimerReminder = safetyTimerReminder;
+  const updateSetting = (key, value) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (e) {
+      // safe fallback if haptics is not available
+    }
 
     if (key === 'sosMessage') {
       setSosMessage(value);
-      nextSosMessage = value;
     } else if (key === 'fakeCallName') {
       setFakeCallName(value);
-      nextFakeCallName = value;
     } else if (key === 'shakeSensitivity') {
       setShakeSensitivity(value);
-      nextShakeSensitivity = value;
     } else if (key === 'safetyTimerReminder') {
       setSafetyTimerReminder(value);
-      nextSafetyTimerReminder = value;
-    }
-
-    try {
-      await saveSettings({
-        sosMessage: nextSosMessage,
-        fakeCallName: nextFakeCallName,
-        shakeSensitivity: nextShakeSensitivity,
-        safetyTimerReminder: nextSafetyTimerReminder
-      });
-    } catch (e) {
-      console.error("Failed to save settings:", e);
     }
   };
 
-  const getFontFamily = (weight = 'bold') => {
-    if (!fontsLoaded) return 'System';
-    if (weight === 'bold') return 'Rajdhani_700Bold';
-    if (weight === 'medium') return 'Rajdhani_600SemiBold';
-    return 'Rajdhani_400Regular';
+  const handleBack = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch (e) {
+      // safe fallback
+    }
+    navigation.goBack();
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#04050a" />
       
-      {/* Sleek Cyber Header */}
+      {/* Sleek Symmetrical Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton} 
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); navigation.goBack(); }}
+          onPress={handleBack}
         >
-          <Text style={[styles.backText, { fontFamily: getFontFamily('bold') }]}>◀ BACK</Text>
+          <Text style={styles.backText}>◀ BACK</Text>
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { fontFamily: getFontFamily('bold') }]}>SYSTEM CONFIG</Text>
+        <Text style={styles.headerTitle}>SYSTEM CONFIG</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -113,12 +65,12 @@ const SettingsScreen = ({ navigation }) => {
         
         {/* SOS Emergency Message Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { fontFamily: getFontFamily('bold') }]}>EMERGENCY MESSAGE</Text>
-          <Text style={[styles.sectionSubtitle, { fontFamily: getFontFamily('medium') }]}>
+          <Text style={styles.sectionTitle}>EMERGENCY MESSAGE</Text>
+          <Text style={styles.sectionSubtitle}>
             Custom message broadcasted to emergency contacts when SOS triggers.
           </Text>
           <TextInput
-            style={[styles.multilineInput, { fontFamily: getFontFamily('medium') }]}
+            style={styles.multilineInput}
             multiline
             numberOfLines={4}
             value={sosMessage}
@@ -130,12 +82,12 @@ const SettingsScreen = ({ navigation }) => {
 
         {/* Fake Call Caller Name Section */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { fontFamily: getFontFamily('bold') }]}>FAKE CALL NAME</Text>
-          <Text style={[styles.sectionSubtitle, { fontFamily: getFontFamily('medium') }]}>
+          <Text style={styles.sectionTitle}>FAKE CALL NAME</Text>
+          <Text style={styles.sectionSubtitle}>
             Caller ID name shown during fake incoming call simulation.
           </Text>
           <TextInput
-            style={[styles.textInput, { fontFamily: getFontFamily('medium') }]}
+            style={styles.textInput}
             value={fakeCallName}
             onChangeText={(val) => updateSetting('fakeCallName', val)}
             placeholder="e.g. Mom, Officer, Boss..."
@@ -146,12 +98,12 @@ const SettingsScreen = ({ navigation }) => {
 
         {/* Shake Sensitivity Selection */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { fontFamily: getFontFamily('bold') }]}>SHAKE SENSITIVITY</Text>
-          <Text style={[styles.sectionSubtitle, { fontFamily: getFontFamily('medium') }]}>
+          <Text style={styles.sectionTitle}>SHAKE SENSITIVITY</Text>
+          <Text style={styles.sectionSubtitle}>
             Tweak accelerometer threshold. Higher values require harder shaking.
           </Text>
           <View style={styles.sensitivityRow}>
-            {/* High Sensitivity (Threshold: 1.5) */}
+            {/* High Sensitivity */}
             <TouchableOpacity 
               style={[
                 styles.sensButton, 
@@ -162,12 +114,11 @@ const SettingsScreen = ({ navigation }) => {
             >
               <Text style={[
                 styles.sensButtonText, 
-                { fontFamily: getFontFamily('bold') },
                 shakeSensitivity === 1.5 && styles.sensButtonTextActive
               ]}>HIGH (1.5)</Text>
             </TouchableOpacity>
 
-            {/* Medium Sensitivity (Threshold: 2.0) */}
+            {/* Medium Sensitivity */}
             <TouchableOpacity 
               style={[
                 styles.sensButton, 
@@ -178,12 +129,11 @@ const SettingsScreen = ({ navigation }) => {
             >
               <Text style={[
                 styles.sensButtonText, 
-                { fontFamily: getFontFamily('bold') },
                 shakeSensitivity === 2.0 && styles.sensButtonTextActive
               ]}>MED (2.0)</Text>
             </TouchableOpacity>
 
-            {/* Low Sensitivity (Threshold: 2.5) */}
+            {/* Low Sensitivity */}
             <TouchableOpacity 
               style={[
                 styles.sensButton, 
@@ -194,7 +144,6 @@ const SettingsScreen = ({ navigation }) => {
             >
               <Text style={[
                 styles.sensButtonText, 
-                { fontFamily: getFontFamily('bold') },
                 shakeSensitivity === 2.5 && styles.sensButtonTextActive
               ]}>LOW (2.5)</Text>
             </TouchableOpacity>
@@ -204,8 +153,8 @@ const SettingsScreen = ({ navigation }) => {
         {/* Safety Timer Vibration Toggle */}
         <View style={[styles.section, styles.toggleSection]}>
           <View style={styles.toggleTextContainer}>
-            <Text style={[styles.sectionTitle, { fontFamily: getFontFamily('bold') }]}>SAFETY TIMER REMINDER</Text>
-            <Text style={[styles.sectionSubtitle, styles.toggleSubtitle, { fontFamily: getFontFamily('medium') }]}>
+            <Text style={styles.sectionTitle}>SAFETY TIMER REMINDER</Text>
+            <Text style={[styles.sectionSubtitle, styles.toggleSubtitle]}>
               Vibrate and tick physically during the 5s auto-SOS countdown overlay.
             </Text>
           </View>

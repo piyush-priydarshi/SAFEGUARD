@@ -1,7 +1,7 @@
 import requests
 from flask import Blueprint, request, jsonify, g
 from auth_utils import login_required, get_db
-from alert_service import send_sos_alerts
+from alert_service import send_sos_alerts, send_telegram_initial_alert, send_telegram_cancellation
 from datetime import datetime
 
 sos_bp = Blueprint('sos', __name__)
@@ -28,6 +28,7 @@ def trigger_sos():
     latitude  = data.get('latitude')
     longitude = data.get('longitude')
     address   = data.get('address', '').strip() or None
+    battery_level = data.get('battery') or data.get('battery_level')
 
     db = get_db()
 
@@ -74,19 +75,14 @@ def trigger_sos():
     time_now = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
     # 🔥 TELEGRAM ALERT (IMPROVED)
-    send_telegram_alert(
-        f"""🚨 EMERGENCY ALERT 🚨
-
-👤 Name: {name}
-📞 Phone: {phone}
-🆔 User ID: {g.user_id}
-
-📍 Location:
-https://maps.google.com/?q={lat},{lng}
-
-🕒 Time: {time_now}
-⚠ Status: SOS ACTIVE
-"""
+    send_telegram_initial_alert(
+        user_name=name,
+        phone=phone,
+        user_id=g.user_id,
+        latitude=latitude,
+        longitude=longitude,
+        battery_level=battery_level,
+        sos_id=sos['id']
     )
 
     db.commit()
@@ -116,6 +112,11 @@ def cancel_sos():
         (sos['id'],)
     )
     db.commit()
+
+    # 🔥 TELEGRAM CANCELLATION
+    user = db.execute("SELECT name FROM users WHERE id = ?", (g.user_id,)).fetchone()
+    name = user['name'] if user and user['name'] else "Unknown"
+    send_telegram_cancellation(name)
 
     sos = db.execute(
         "SELECT * FROM sos_events WHERE id = ?",

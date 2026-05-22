@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { 
   View, 
   Text, 
@@ -6,23 +6,89 @@ import {
   TouchableOpacity, 
   Animated, 
   StatusBar,
-  SafeAreaView
+  Vibration
 } from 'react-native';
-import { useFonts } from 'expo-font';
-import { 
-  Rajdhani_400Regular, 
-  Rajdhani_600SemiBold, 
-  Rajdhani_700Bold 
-} from '@expo-google-fonts/rajdhani';
 import { getSettings } from '../utils/storage';
+import { Audio } from 'expo-av';
+
+const RING_URLS = [
+  'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+  'https://actions.google.com/sounds/v1/alarms/phone_alerts_and_rings.ogg',
+  'https://www.w3schools.com/html/horse.mp3',
+];
 
 const FakeCallScreen = ({ navigation }) => {
-  const [isInCall, setIsInCall] = useState(false);
-  const [timer, setTimer] = useState(0);
-  const [fakeCallName, setFakeCallName] = useState("Mom");
+  const [isInCall, setIsInCall] = React.useState(false);
+  const [timer, setTimer] = React.useState(0);
+  const [fakeCallName, setFakeCallName] = React.useState("Mom");
 
-  useEffect(() => {
-    const loadName = async () => {
+  const soundRef = React.useRef(null);
+  const isRingingActive = React.useRef(true);
+
+  React.useEffect(() => {
+    isRingingActive.current = true;
+    playRinging();
+    return () => {
+      isRingingActive.current = false;
+      Vibration.cancel();
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
+  const playRinging = async () => {
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+    } catch (e) {
+      // Fail silently
+    }
+
+    let loadedSuccessfully = false;
+
+    for (const url of RING_URLS) {
+      if (!isRingingActive.current) {
+        break;
+      }
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: url },
+          { shouldPlay: isRingingActive.current, isLooping: true, volume: 1.0 }
+        );
+        if (isRingingActive.current) {
+          soundRef.current = sound;
+          loadedSuccessfully = true;
+          break;
+        } else {
+          await sound.unloadAsync().catch(() => {});
+          break;
+        }
+      } catch (e) {
+        // Silently catch and try next URL
+      }
+    }
+
+    if (!loadedSuccessfully && isRingingActive.current) {
+      Vibration.vibrate([0, 1000, 500, 1000, 500, 1000, 500, 1000], true);
+    }
+  };
+
+  const stopRinging = async () => {
+    isRingingActive.current = false;
+    Vibration.cancel();
+    try {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+        soundRef.current = null;
+      }
+    } catch (e) {
+      // Fail silently
+    }
+  };
+
+  React.useEffect(() => {
+    const loadSettings = async () => {
       try {
         const saved = await getSettings();
         if (saved && saved.fakeCallName) {
@@ -32,29 +98,21 @@ const FakeCallScreen = ({ navigation }) => {
         console.error("Failed to load fake call name settings:", e);
       }
     };
-    loadName();
+    loadSettings();
   }, []);
 
   // Animation values
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
-  const textPulse = useRef(new Animated.Value(0.4)).current;
-
-  // Fonts loading
-  const [fontsLoaded] = useFonts({
-    Rajdhani_400Regular,
-    Rajdhani_600SemiBold,
-    Rajdhani_700Bold,
-  });
+  const pulseAnim = React.useRef(new Animated.Value(0)).current;
+  const shakeAnim = React.useRef(new Animated.Value(0)).current;
+  const textPulse = React.useRef(new Animated.Value(0.4)).current;
 
   // Ringing animations
-  useEffect(() => {
+  React.useEffect(() => {
     let shakeLoop = null;
     let pulseLoop = null;
     let textLoop = null;
 
     if (!isInCall) {
-      // 1. Loop pulse animation (scale/opacity)
       pulseLoop = Animated.loop(
         Animated.timing(pulseAnim, {
           toValue: 1,
@@ -64,7 +122,6 @@ const FakeCallScreen = ({ navigation }) => {
       );
       pulseLoop.start();
 
-      // 2. Loop avatar gentle left-right shake ringing animation
       const shakeSequence = Animated.sequence([
         Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: true }),
         Animated.timing(shakeAnim, { toValue: 8, duration: 60, useNativeDriver: true }),
@@ -73,12 +130,11 @@ const FakeCallScreen = ({ navigation }) => {
         Animated.timing(shakeAnim, { toValue: -6, duration: 60, useNativeDriver: true }),
         Animated.timing(shakeAnim, { toValue: 6, duration: 60, useNativeDriver: true }),
         Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
-        Animated.delay(1000), // Delay 1 second between rings
+        Animated.delay(1000),
       ]);
       shakeLoop = Animated.loop(shakeSequence);
       shakeLoop.start();
 
-      // 3. Subtitle "Incoming Call..." pulse animation
       textLoop = Animated.loop(
         Animated.sequence([
           Animated.timing(textPulse, { toValue: 1, duration: 800, useNativeDriver: true }),
@@ -100,7 +156,7 @@ const FakeCallScreen = ({ navigation }) => {
   }, [isInCall]);
 
   // Call timer simulation
-  useEffect(() => {
+  React.useEffect(() => {
     let interval = null;
     if (isInCall) {
       setTimer(0);
@@ -121,29 +177,22 @@ const FakeCallScreen = ({ navigation }) => {
     };
   }, [isInCall]);
 
-  // Format call duration timer (e.g., 00:01)
   const formatTime = (secs) => {
     const minutes = Math.floor(secs / 60).toString().padStart(2, '0');
     const seconds = (secs % 60).toString().padStart(2, '0');
     return `${minutes}:${seconds}`;
   };
 
-  const getFontFamily = (weight = 'bold') => {
-    if (!fontsLoaded) return 'System';
-    if (weight === 'bold') return 'Rajdhani_700Bold';
-    if (weight === 'medium') return 'Rajdhani_600SemiBold';
-    return 'Rajdhani_400Regular';
-  };
-
-  const handleDecline = () => {
+  const handleDecline = async () => {
+    await stopRinging();
     navigation.goBack();
   };
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
+    await stopRinging();
     setIsInCall(true);
   };
 
-  // Interpolations for green pulse ring
   const pulseScale = pulseAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [1, 1.35],
@@ -155,13 +204,11 @@ const FakeCallScreen = ({ navigation }) => {
   });
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
       
-      {/* Top Header / Avatar Area */}
       <View style={styles.topSection}>
         <View style={styles.avatarWrapper}>
-          {/* Pulsing Outer Ring (Ringing only) */}
           {!isInCall && (
             <Animated.View 
               style={[
@@ -174,31 +221,28 @@ const FakeCallScreen = ({ navigation }) => {
             />
           )}
           
-          {/* Main Shaking Avatar */}
           <Animated.View style={[styles.avatar, { transform: [{ translateX: shakeAnim }] }]}>
-            <Text style={[styles.avatarText, { fontFamily: getFontFamily('bold') }]}>
+            <Text style={styles.avatarText}>
               {fakeCallName.toUpperCase().slice(0, 3)}
             </Text>
           </Animated.View>
         </View>
 
-        <Text style={[styles.callerName, { fontFamily: getFontFamily('bold') }]}>{fakeCallName}</Text>
+        <Text style={styles.callerName}>{fakeCallName}</Text>
         
         {isInCall ? (
-          <Text style={[styles.callDuration, { fontFamily: getFontFamily('medium') }]}>
+          <Text style={styles.callDuration}>
             {formatTime(timer)}
           </Text>
         ) : (
-          <Animated.Text style={[styles.incomingSubtitle, { opacity: textPulse, fontFamily: getFontFamily('medium') }]}>
+          <Animated.Text style={[styles.incomingSubtitle, { opacity: textPulse }]}>
             Incoming Call...
           </Animated.Text>
         )}
       </View>
 
-      {/* Bottom Controls Area */}
       <View style={styles.bottomSection}>
         {isInCall ? (
-          /* "In Call" Hang-up Button */
           <View style={styles.inCallControls}>
             <TouchableOpacity 
               style={[styles.circleButton, styles.declineButton]} 
@@ -207,10 +251,9 @@ const FakeCallScreen = ({ navigation }) => {
             >
               <Text style={styles.buttonIcon}>✕</Text>
             </TouchableOpacity>
-            <Text style={[styles.buttonLabel, { fontFamily: getFontFamily('medium') }]}>End Call</Text>
+            <Text style={styles.buttonLabel}>End Call</Text>
           </View>
         ) : (
-          /* Incoming Call Acceptance Controls */
           <View style={styles.incomingControls}>
             <View style={styles.controlColumn}>
               <TouchableOpacity 
@@ -220,7 +263,7 @@ const FakeCallScreen = ({ navigation }) => {
               >
                 <Text style={styles.buttonIcon}>✕</Text>
               </TouchableOpacity>
-              <Text style={[styles.buttonLabel, { fontFamily: getFontFamily('medium') }]}>Decline</Text>
+              <Text style={styles.buttonLabel}>Decline</Text>
             </View>
 
             <View style={styles.controlColumn}>
@@ -231,12 +274,12 @@ const FakeCallScreen = ({ navigation }) => {
               >
                 <Text style={styles.buttonIcon}>📞</Text>
               </TouchableOpacity>
-              <Text style={[styles.buttonLabel, { fontFamily: getFontFamily('medium') }]}>Accept</Text>
+              <Text style={styles.buttonLabel}>Accept</Text>
             </View>
           </View>
         )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -269,10 +312,6 @@ const styles = StyleSheet.create({
     borderColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#ffffff',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
     elevation: 8,
   },
   avatarText: {
@@ -327,18 +366,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
     elevation: 6,
   },
   declineButton: {
     backgroundColor: '#dc2626',
-    shadowColor: '#dc2626',
   },
   acceptButton: {
     backgroundColor: '#22c55e',
-    shadowColor: '#22c55e',
   },
   buttonIcon: {
     color: '#ffffff',
