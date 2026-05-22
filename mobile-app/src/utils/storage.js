@@ -24,3 +24,12 @@ export const getUser = async () => {
 export const removeUser = async () => {
   await SecureStore.deleteItemAsync('user');
 };
+
+export const saveSettings = async (settings) => {
+  await SecureStore.setItemAsync('settings', JSON.stringify(settings));
+};
+
+export const getSettings = async () => {
+  const data = await SecureStore.getItemAsync('settings');
+  return data ? JSON.parse(data) : null;
+};

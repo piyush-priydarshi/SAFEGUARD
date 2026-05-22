@@ -9,6 +9,8 @@ import DashboardScreen from './src/screens/DashboardScreen';
 import MapScreen from './src/screens/MapScreen';
 import ContactsScreen from './src/screens/ContactsScreen';
 import AdminScreen from './src/screens/AdminScreen';
+import FakeCallScreen from './src/screens/FakeCallScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 import { getToken } from './src/utils/storage';
 import { 
   ActivityIndicator, 
@@ -162,6 +164,20 @@ export default function App() {
         <Stack.Screen 
           name="Admin" 
           component={AdminScreen} 
+          options={{
+            cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          }}
+        />
+        <Stack.Screen 
+          name="FakeCall" 
+          component={FakeCallScreen} 
+          options={{
+            cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
+          }}
+        />
+        <Stack.Screen 
+          name="Settings" 
+          component={SettingsScreen} 
           options={{
             cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
           }}

@@ -8,11 +8,12 @@ import {
   TouchableOpacity, 
   Animated, 
   Platform,
-  StatusBar
+  StatusBar,
+  Vibration
 } from 'react-native';
 import { ScreenWrapper } from '../components/ScreenWrapper';
 import { api } from '../api/client';
-import { removeToken, removeUser, getUser } from '../utils/storage';
+import { removeToken, removeUser, getUser, getSettings } from '../utils/storage';
 import { useFonts } from 'expo-font';
 import { 
   Rajdhani_400Regular, 
@@ -35,6 +36,37 @@ const DashboardScreen = ({ navigation }) => {
   const countdownIntervalRef = useRef(null);
   const sosStatusRef = useRef(sosStatus);
   const shakeCountdownRef = useRef(shakeCountdown);
+  const shakeTimestampsRef = useRef([]);
+
+  const [settings, setSettings] = useState({
+    sosMessage: "I need help! This is an emergency. Please contact me immediately.",
+    fakeCallName: "Mom",
+    shakeSensitivity: 2.0,
+    safetyTimerReminder: true
+  });
+  const settingsRef = useRef(settings);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadLocalSettings();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const loadLocalSettings = async () => {
+    try {
+      const saved = await getSettings();
+      if (saved) {
+        setSettings(saved);
+      }
+    } catch (e) {
+      console.error("Failed to load settings:", e);
+    }
+  };
 
   useEffect(() => {
     sosStatusRef.current = sosStatus;
@@ -146,15 +178,39 @@ const DashboardScreen = ({ navigation }) => {
     let subscription = null;
 
     const subscribeAccelerometer = async () => {
-      Accelerometer.setUpdateInterval(250); // Fetch reading every 250ms
+      Accelerometer.setUpdateInterval(100); // Fetch reading every 100ms for rapid shake detection
       subscription = Accelerometer.addListener(accelerometerData => {
         const { x, y, z } = accelerometerData;
-        const acceleration = Math.sqrt(x * x + y * y + z * z);
         
-        // Shake threshold set to 1.8G
-        if (acceleration > 1.8) {
-          if (sosStatusRef.current === 'idle' && shakeCountdownRef.current === null) {
-            startShakeCountdown();
+        // expo-sensors returns readings in G-force (1G ≈ 9.8 m/s²).
+        // Convert to m/s² to correctly calculate magnitude relative to the sensitivity threshold.
+        const xMs = x * 9.8;
+        const yMs = y * 9.8;
+        const zMs = z * 9.8;
+        const magnitude = Math.sqrt(xMs * xMs + yMs * yMs + zMs * zMs) - 9.8;
+        
+        // Sensitivity threshold: acceleration magnitude > custom threshold (defaults to 2.0)
+        const threshold = settingsRef.current.shakeSensitivity !== undefined 
+          ? settingsRef.current.shakeSensitivity 
+          : 2.0;
+
+        if (magnitude > threshold) {
+          const now = Date.now();
+          const lastShake = shakeTimestampsRef.current[shakeTimestampsRef.current.length - 1];
+          
+          // Debounce distinct shakes by at least 300ms so a single physical movement doesn't multi-register
+          if (!lastShake || now - lastShake >= 300) {
+            // Keep only shakes within the last 2000ms
+            shakeTimestampsRef.current = shakeTimestampsRef.current.filter(ts => now - ts <= 2000);
+            shakeTimestampsRef.current.push(now);
+
+            // Trigger SOS countdown only if exactly 3 shakes are detected in 2 seconds
+            if (shakeTimestampsRef.current.length >= 3) {
+              shakeTimestampsRef.current = []; // Clear array to prevent double trigger
+              if (sosStatusRef.current === 'idle' && shakeCountdownRef.current === null) {
+                startShakeCountdown();
+              }
+            }
           }
         }
       });
@@ -171,11 +227,14 @@ const DashboardScreen = ({ navigation }) => {
   }, []);
 
   const startShakeCountdown = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    addLog('Shake detected! Triggering auto-SOS...', 'info');
+    // Immediately vibrate phone using Vibration from react-native if enabled
+    if (settingsRef.current.safetyTimerReminder) {
+      Vibration.vibrate([0, 200, 100, 200, 100, 400]);
+    }
+    addLog('3 rapid shakes detected! Triggering auto-SOS...', 'error');
     
-    setShakeCountdown(3);
-    let current = 3;
+    setShakeCountdown(5);
+    let current = 5;
     
     countdownIntervalRef.current = setInterval(() => {
       current -= 1;
@@ -186,13 +245,16 @@ const DashboardScreen = ({ navigation }) => {
         triggerSosFromShake();
       } else {
         setShakeCountdown(current);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (settingsRef.current.safetyTimerReminder) {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
       }
     }, 1000);
   };
 
   const cancelShakeCountdown = () => {
-    triggerHaptic();
+    // Vibrate once short (200ms) and dismiss overlay
+    Vibration.vibrate(200);
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
@@ -358,7 +420,16 @@ const DashboardScreen = ({ navigation }) => {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={[styles.headerLabel, { fontFamily: getFontFamily('medium') }]}>SAFETY STATUS</Text>
-          <Text style={[styles.headerTitle, { fontFamily: getFontFamily('bold') }]}>SAFEGUARD</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.headerTitle, { fontFamily: getFontFamily('bold'), marginVertical: 0 }]}>SAFEGUARD</Text>
+            <TouchableOpacity 
+              style={styles.settingsHeaderButton} 
+              onPress={() => { triggerHaptic(); navigation.navigate('Settings'); }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.settingsHeaderIcon}>⚙️</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.statusDotRow}>
             <Animated.View style={[styles.statusDotActive, { opacity: activePulse }]} />
             <Text style={[styles.statusText, { fontFamily: getFontFamily('medium') }]}>System Active</Text>
@@ -420,6 +491,17 @@ const DashboardScreen = ({ navigation }) => {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Fake Call Pill Button */}
+        {sosStatus !== 'active' && (
+          <TouchableOpacity 
+            style={styles.fakeCallPill} 
+            onPress={() => { triggerHaptic(); navigation.navigate('FakeCall'); }}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.fakeCallPillText, { fontFamily: getFontFamily('bold') }]}>📞 Fake Call</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Premium Stats Row with Loading Skeletons */}
@@ -499,14 +581,9 @@ const DashboardScreen = ({ navigation }) => {
       {/* Shake Countdown Overlay */}
       {shakeCountdown !== null && (
         <View style={styles.shakeOverlay}>
-          <View style={styles.shakeCard}>
-            <Text style={styles.shakeShield}>📳</Text>
-            <Text style={[styles.shakeTitle, { fontFamily: getFontFamily('bold') }]}>SHAKE DETECTED</Text>
-            <Text style={[styles.shakeSubtitle, { fontFamily: getFontFamily('medium') }]}>
-              Triggering SOS alert in
-            </Text>
-            <Text style={[styles.shakeTimer, { fontFamily: getFontFamily('bold') }]}>
-              {shakeCountdown}
+          <View style={styles.countdownContent}>
+            <Text style={[styles.countdownText, { fontFamily: getFontFamily('bold') }]}>
+              SOS in {shakeCountdown}
             </Text>
             <TouchableOpacity 
               style={styles.shakeCancelButton} 
@@ -514,7 +591,7 @@ const DashboardScreen = ({ navigation }) => {
               activeOpacity={0.8}
             >
               <Text style={[styles.shakeCancelButtonText, { fontFamily: getFontFamily('bold') }]}>
-                ABORT DISPATCH (✕)
+                TAP TO CANCEL
               </Text>
             </TouchableOpacity>
           </View>
@@ -873,67 +950,72 @@ const styles = StyleSheet.create({
   },
   shakeOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(4, 5, 10, 0.95)',
+    backgroundColor: 'rgba(4, 5, 10, 0.92)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
   },
-  shakeCard: {
-    width: '85%',
-    backgroundColor: '#0d0d14',
-    borderWidth: 1.5,
-    borderColor: '#ff2d55',
-    borderRadius: 24,
-    padding: 30,
+  countdownContent: {
     alignItems: 'center',
-    shadowColor: '#ff2d55',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 10,
+    justifyContent: 'center',
+    width: '85%',
   },
-  shakeShield: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  shakeTitle: {
-    color: '#ff2d55',
-    fontSize: 22,
-    fontWeight: 'bold',
-    letterSpacing: 1.5,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  shakeSubtitle: {
-    color: 'rgba(255, 255, 255, 0.5)',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  shakeTimer: {
+  countdownText: {
+    fontSize: 54,
     color: '#ffffff',
-    fontSize: 72,
-    fontWeight: 'bold',
-    marginBottom: 24,
+    textAlign: 'center',
+    marginBottom: 40,
+    letterSpacing: 2,
     textShadowColor: '#ff2d55',
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
+    textShadowRadius: 15,
   },
   shakeCancelButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    width: '100%',
+    backgroundColor: '#ff2d55',
+    borderRadius: 30,
+    paddingVertical: 16,
+    paddingHorizontal: 36,
+    width: '80%',
     alignItems: 'center',
+    shadowColor: '#ff2d55',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
   },
   shakeCancelButtonText: {
     color: '#ffffff',
-    fontSize: 13,
-    letterSpacing: 1,
+    fontSize: 16,
+    letterSpacing: 1.5,
     fontWeight: 'bold',
+  },
+  fakeCallPill: {
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.4)',
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  fakeCallPillText: {
+    fontSize: 14,
+    color: '#22c55e',
+    letterSpacing: 0.5,
+  },
+  settingsHeaderButton: {
+    marginLeft: 8,
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  settingsHeaderIcon: {
+    fontSize: 20,
   },
 });
 
