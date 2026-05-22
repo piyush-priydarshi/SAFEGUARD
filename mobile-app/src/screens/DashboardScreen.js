@@ -492,15 +492,25 @@ const DashboardScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Fake Call Pill Button */}
+        {/* Action Pills Row */}
         {sosStatus !== 'active' && (
-          <TouchableOpacity 
-            style={styles.fakeCallPill} 
-            onPress={() => { triggerHaptic(); navigation.navigate('FakeCall'); }}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.fakeCallPillText, { fontFamily: getFontFamily('bold') }]}>📞 Fake Call</Text>
-          </TouchableOpacity>
+          <View style={styles.actionPillsRow}>
+            <TouchableOpacity 
+              style={styles.actionPill} 
+              onPress={() => { triggerHaptic(); navigation.navigate('FakeCall'); }}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.actionPillText, { fontFamily: getFontFamily('bold') }]}>📞 Fake Call</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.actionPill, styles.voiceGuardPill]} 
+              onPress={() => { triggerHaptic(); navigation.navigate('VoiceGuard'); }}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.actionPillText, styles.voiceGuardPillText, { fontFamily: getFontFamily('bold') }]}>🎙 Voice Guard</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -989,13 +999,18 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     fontWeight: 'bold',
   },
-  fakeCallPill: {
+  actionPillsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
     marginTop: 20,
+  },
+  actionPill: {
     borderWidth: 1,
     borderColor: 'rgba(34, 197, 94, 0.4)',
     borderRadius: 20,
     paddingVertical: 10,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     backgroundColor: 'rgba(34, 197, 94, 0.08)',
     shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 2 },
@@ -1003,10 +1018,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  fakeCallPillText: {
+  actionPillText: {
     fontSize: 14,
     color: '#22c55e',
     letterSpacing: 0.5,
+  },
+  voiceGuardPill: {
+    borderColor: 'rgba(76, 201, 240, 0.4)',
+    backgroundColor: 'rgba(76, 201, 240, 0.08)',
+    shadowColor: '#4cc9f0',
+  },
+  voiceGuardPillText: {
+    color: '#4cc9f0',
   },
   settingsHeaderButton: {
     marginLeft: 8,

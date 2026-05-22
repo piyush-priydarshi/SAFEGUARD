@@ -11,6 +11,7 @@ import ContactsScreen from './src/screens/ContactsScreen';
 import AdminScreen from './src/screens/AdminScreen';
 import FakeCallScreen from './src/screens/FakeCallScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import VoiceDetectionScreen from './src/screens/VoiceDetectionScreen';
 import { getToken } from './src/utils/storage';
 import { 
   ActivityIndicator, 
@@ -178,6 +179,13 @@ export default function App() {
         <Stack.Screen 
           name="Settings" 
           component={SettingsScreen} 
+          options={{
+            cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          }}
+        />
+        <Stack.Screen 
+          name="VoiceGuard" 
+          component={VoiceDetectionScreen} 
           options={{
             cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
           }}
