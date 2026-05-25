@@ -1,12 +1,12 @@
-# 🛡️ SAFEGUARD - Women Safety App
+# SAFEGUARD - Women Safety App
 
 A cross-platform mobile app (Android + iOS) for women's safety.
 
 ## Features
-- 🆘 One-tap SOS alert system
-- 📍 Live location sharing
-- 👥 Trusted contacts management
-- 📋 Activity log
+- One-tap SOS alert system
+- Live location sharing
+- Trusted contacts management
+- Activity log
 
 ## Stack
 - Frontend: React Native + Expo
